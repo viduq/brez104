@@ -13,9 +13,13 @@ import (
 
 var (
 	sashPos1        float32 = 100
-	sashPos2        float32 = 100
+	sashPos2        float32 = 250
 	logTxt          string
-	colorConnection        = colornames.Cadetblue
+	colorConnection          = colornames.Cadetblue
+	typeIds         []string = vv104.TypeIDs
+	typeIdSelected  int32
+	ioa             int32 = 1
+	objName         string
 	ipAddrStr       string = "127.0.0.1"
 	portStr         string = "2404"
 	mode            string = "client"
@@ -28,8 +32,13 @@ var (
 	t2              string = "10"
 	t3              string = "20"
 
-	state vv104.State
+	state   vv104.State
+	objects vv104.Objects
 )
+
+func init() {
+	objects = *vv104.NewObjects()
+}
 
 func loop() {
 
@@ -74,7 +83,17 @@ func loop() {
 				),
 			},
 			giu.SplitLayout(giu.DirectionVertical, &sashPos2,
-				giu.Layout{giu.Label("Objects")},
+				giu.Layout{giu.Label("Objects"),
+					// giu.Row(
+					giu.Combo("Type ID", typeIds[typeIdSelected], typeIds, &typeIdSelected),
+					giu.Label("IOA:"),
+					giu.InputInt(&ioa),
+					giu.Label("Obj. Name:"),
+					giu.InputText(&objName),
+					// ),
+					giu.Button("Add obj. to list").OnClick(addObject),
+					giu.ListBox("objects", objects.ObjectsList),
+				},
 				giu.Layout{
 					giu.Row(
 						giu.Checkbox("Auto Scrolling", &autoScrolling).OnChange(func() { fmt.Println(autoScrolling) }),
@@ -129,6 +148,13 @@ func disconnectIec104() {
 func logCallback() {
 	logTxt += vv104.ReadLogEntry()
 	giu.Update()
+}
+
+func addObject() {
+	asdu := vv104.NewAsdu()
+	asdu.TypeId = 1
+	objects.AddObject(objName, *asdu)
+
 }
 
 // func refresh() {
