@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 
 	"github.com/viduq/vv104"
 
@@ -18,6 +19,7 @@ var (
 	colorConnection          = colornames.Cadetblue
 	typeIds         []string = vv104.TypeIDs
 	typeIdSelected  int32
+	objectSelected  int32
 	ioa             int32 = 1
 	objName         string
 	ipAddrStr       string = "127.0.0.1"
@@ -91,8 +93,11 @@ func loop() {
 					giu.Label("Obj. Name:"),
 					giu.InputText(&objName),
 					// ),
-					giu.Button("Add obj. to list").OnClick(addObject),
-					giu.ListBox("objects", objects.ObjectsList),
+					giu.Row(
+						giu.Button("Add object").OnClick(addObject),
+						giu.Button("Remove object").OnClick(removeObject),
+					),
+					giu.ListBox("objects", objects.ObjectsList).SelectedIndex(&objectSelected),
 				},
 				giu.Layout{
 					giu.Row(
@@ -153,7 +158,34 @@ func logCallback() {
 func addObject() {
 	asdu := vv104.NewAsdu()
 	asdu.TypeId = 1
-	objects.AddObject(objName, *asdu)
+
+	var infoObj vv104.InfoObj
+	infoObj.Ioa = vv104.Ioa(ioa)
+	asdu.InfoObj = append(asdu.InfoObj, infoObj)
+	err := objects.AddObject(objName, *asdu)
+	if err != nil {
+		fmt.Println(err)
+	}
+	// ioa++
+
+}
+
+func removeObject() {
+
+	fmt.Println(objectSelected)
+	fmt.Println(objects.ObjectsList)
+	fmt.Println(len(objects.ObjectsList))
+	if objectSelected < int32(len(objects.ObjectsList)) && objectSelected >= 0 && len(objects.ObjectsList) >= 1 {
+		// ObjectList contains objName | TypeID | IOA, we only need objName for reference, so we have to cut after first space
+		// this is a bit of a hack. Todo.
+		objName := strings.Split(objects.ObjectsList[objectSelected], " ")[0]
+		fmt.Println(objName)
+		err := objects.RemoveObject(objName)
+		if err != nil {
+			fmt.Println(err)
+		}
+
+	}
 
 }
 
