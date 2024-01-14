@@ -13,26 +13,32 @@ import (
 )
 
 var (
-	sashPos1        float32 = 100
-	sashPos2        float32 = 250
-	logTxt          string
-	colorConnection          = colornames.Cadetblue
-	typeIds         []string = vv104.TypeIDs
-	typeIdSelected  int32
-	objectSelected  int32
-	ioa             int32 = 1
-	objName         string
-	ipAddrStr       string = "127.0.0.1"
-	portStr         string = "2404"
-	mode            string = "client"
-	autoScrolling   bool   = true
-	errorTextIp     string = ""
-	errorTextPort   string = ""
-	k               string = "12"
-	w               string = "8"
-	t1              string = "15"
-	t2              string = "10"
-	t3              string = "20"
+	sashPos1             float32 = 100
+	sashPos2             float32 = 250
+	logTxt               string
+	colorConnection               = colornames.Cadetblue
+	typeIds              []string = vv104.TypeIDs
+	typeIdSelected       int32
+	typeIdStr            string
+	moniObjectSelected   int32
+	ctrlObjectSelected   int32
+	moniObjectsTabIsOpen bool             = true
+	ctrlObjectsTabIsOpen bool             = false
+	tabItemSelected      giu.TabItemFlags = giu.TabItemFlagsSetSelected
+
+	ioa           int32 = 1
+	objName       string
+	ipAddrStr     string = "127.0.0.1"
+	portStr       string = "2404"
+	mode          string = "client"
+	autoScrolling bool   = true
+	errorTextIp   string = ""
+	errorTextPort string = ""
+	k             string = "12"
+	w             string = "8"
+	t1            string = "15"
+	t2            string = "10"
+	t3            string = "20"
 
 	state   vv104.State
 	objects vv104.Objects
@@ -86,18 +92,29 @@ func loop() {
 			},
 			giu.SplitLayout(giu.DirectionVertical, &sashPos2,
 				giu.Layout{giu.Label("Objects"),
-					// giu.Row(
-					giu.Combo("Type ID", typeIds[typeIdSelected], typeIds, &typeIdSelected),
-					giu.Label("IOA:"),
-					giu.InputInt(&ioa),
-					giu.Label("Obj. Name:"),
-					giu.InputText(&objName),
-					// ),
+					giu.Column(
+						giu.Combo("Type ID", typeIds[typeIdSelected], typeIds, &typeIdSelected),
+						giu.Label("IOA:"),
+						giu.InputInt(&ioa),
+						giu.Label("Obj. Name:"),
+						giu.InputText(&objName),
+					),
 					giu.Row(
 						giu.Button("Add object").OnClick(addObject),
-						giu.Button("Remove object").OnClick(removeObject),
 					),
-					giu.ListBox("objects", objects.ObjectsList).SelectedIndex(&objectSelected),
+					giu.Column(
+						giu.TabBar().TabItems(
+							giu.TabItem("Monitoring").Layout(
+								giu.Button("Remove Moni Obj.").OnClick(removeMoniObject),
+								giu.ListBox("Monitoring", objects.MoniList).SelectedIndex(&moniObjectSelected).Size(sashPos2, 300),
+							), //.IsOpen(&moniObjectsTabIsOpen), //.Flags(giu.TabItemFlagsSetSelected),
+							giu.TabItem("Control").Layout(
+								giu.Button("Remove Ctrl Obj.").OnClick(removeCtrlObject),
+
+								giu.ListBox("Control", objects.CtrlList).SelectedIndex(&ctrlObjectSelected).Size(sashPos2, 300),
+							), //.IsOpen(&ctrlObjectsTabIsOpen),
+						),
+					),
 				},
 				giu.Layout{
 					giu.Row(
@@ -156,8 +173,12 @@ func logCallback() {
 }
 
 func addObject() {
+	fmt.Println(moniObjectsTabIsOpen)
+	fmt.Println(ctrlObjectsTabIsOpen)
+
 	asdu := vv104.NewAsdu()
-	asdu.TypeId = 1
+	typeIdStr = typeIds[typeIdSelected]
+	asdu.TypeId = vv104.TypeIdFromName(typeIdStr)
 
 	var infoObj vv104.InfoObj
 	infoObj.Ioa = vv104.Ioa(ioa)
@@ -170,16 +191,36 @@ func addObject() {
 
 }
 
-func removeObject() {
+func removeMoniObject() {
+	removeObject(moniObjectSelected, int32(len(objects.MoniList)), objects.MoniList)
+}
+func removeCtrlObject() {
+	removeObject(ctrlObjectSelected, int32(len(objects.CtrlList)), objects.CtrlList)
+}
 
-	fmt.Println(objectSelected)
-	fmt.Println(objects.ObjectsList)
-	fmt.Println(len(objects.ObjectsList))
-	if objectSelected < int32(len(objects.ObjectsList)) && objectSelected >= 0 && len(objects.ObjectsList) >= 1 {
+func removeObject(objectSelected int32, lenList int32, list vv104.ObjectList) {
+	// fmt.Println(moniObjectSelected)
+	// fmt.Println(ctrlObjectSelected)
+
+	// var objectSelected int32
+	// var lenList int32
+	// var list vv104.ObjectList
+
+	// // This does not work yet, moniObjectsTabIsOpen is not
+	// if moniObjectsTabIsOpen {
+	// 	objectSelected = moniObjectSelected
+	// 	lenList = int32(len(objects.MoniList))
+	// 	list = objects.MoniList
+	// } else {
+	// 	objectSelected = ctrlObjectSelected
+	// 	lenList = int32(len(objects.CtrlList))
+	// 	list = objects.CtrlList
+	// }
+
+	if objectSelected < lenList && objectSelected >= 0 && lenList >= 1 {
 		// ObjectList contains objName | TypeID | IOA, we only need objName for reference, so we have to cut after first space
 		// this is a bit of a hack. Todo.
-		objName := strings.Split(objects.ObjectsList[objectSelected], " ")[0]
-		fmt.Println(objName)
+		objName := strings.Split(list[objectSelected], " ")[0]
 		err := objects.RemoveObject(objName)
 		if err != nil {
 			fmt.Println(err)
@@ -188,30 +229,6 @@ func removeObject() {
 	}
 
 }
-
-// func refresh() {
-
-// 	ticker := time.NewTicker(time.Second * 1)
-
-// 	for {
-// 		if j > 3 {
-// 			fmt.Println("RETURN")
-// 			return
-// 		} else {
-// 			fmt.Println("j:", j)
-// 			j++
-// 		}
-// 		for i := 0; i < 99999; i++ {
-
-// 			counter = rand.Intn(10000)
-// 			logTxt += strconv.Itoa(counter) + "\n"
-// 			giu.Update()
-// 		}
-
-// 		<-ticker.C
-
-// 	}
-// }
 
 func checkIpAddr() {
 	ip := net.ParseIP(ipAddrStr)
