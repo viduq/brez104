@@ -5,6 +5,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/viduq/vv104"
 
@@ -19,26 +20,34 @@ var (
 	colorConnection               = colornames.Cadetblue
 	typeIds              []string = vv104.TypeIDs
 	typeIdSelected       int32
+	causeTxs             []string = vv104.CauseTxs
+	causeTxSelected      int32
 	typeIdStr            string
+	valueStr             string
+	valueInt             int
+	valueFloat           float32
 	moniObjectSelected   int32
 	ctrlObjectSelected   int32
 	moniObjectsTabIsOpen bool             = true
 	ctrlObjectsTabIsOpen bool             = false
+	casdu                int16            = 1
+	casduStr             string           = "1"
 	tabItemSelected      giu.TabItemFlags = giu.TabItemFlagsSetSelected
 
-	ioa           int32 = 1
-	objName       string
-	ipAddrStr     string = "127.0.0.1"
-	portStr       string = "2404"
-	mode          string = "client"
-	autoScrolling bool   = true
-	errorTextIp   string = ""
-	errorTextPort string = ""
-	k             string = "12"
-	w             string = "8"
-	t1            string = "15"
-	t2            string = "10"
-	t3            string = "20"
+	ioa            int32 = 1
+	objName        string
+	ipAddrStr      string = "127.0.0.1"
+	portStr        string = "2404"
+	mode           string = "client"
+	autoScrolling  bool   = true
+	errorTextIp    string = ""
+	errorTextPort  string = ""
+	errorTextCasdu string = ""
+	k              string = "12"
+	w              string = "8"
+	t1             string = "15"
+	t2             string = "10"
+	t3             string = "20"
 
 	state   vv104.State
 	objects vv104.Objects
@@ -69,6 +78,10 @@ func loop() {
 						giu.Label("Port:"),
 						giu.InputText(&portStr).Label("###portInput").Size(50).Flags(giu.InputTextFlagsCharsDecimal).OnChange(checkPort),
 						giu.Label(errorTextPort),
+
+						giu.Label("Casdu:"),
+						giu.InputText(&casduStr).Label("###casduInput").Size(50).OnChange(checkCasdu),
+						giu.Label(errorTextCasdu),
 
 						giu.Label("k:"),
 						giu.InputText(&k).Label("###k").Size(50).Flags(giu.InputTextFlagsCharsDecimal),
@@ -105,15 +118,18 @@ func loop() {
 					giu.Column(
 						giu.TabBar().TabItems(
 							giu.TabItem("Monitoring").Layout(
-								giu.Button("Remove Moni Obj.").OnClick(removeMoniObject),
 								giu.ListBox("Monitoring", objects.MoniList).SelectedIndex(&moniObjectSelected).Size(sashPos2, 300),
+								giu.Button("Remove Moni Obj.").OnClick(removeMoniObject),
+								giu.Button("Send M. Obj.").OnClick(sendMoniObject),
 							), //.IsOpen(&moniObjectsTabIsOpen), //.Flags(giu.TabItemFlagsSetSelected),
 							giu.TabItem("Control").Layout(
-								giu.Button("Remove Ctrl Obj.").OnClick(removeCtrlObject),
-
 								giu.ListBox("Control", objects.CtrlList).SelectedIndex(&ctrlObjectSelected).Size(sashPos2, 300),
+								giu.Button("Remove Ctrl Obj.").OnClick(removeCtrlObject),
+								giu.Button("Send C. Obj.").OnClick(sendCtrlObject),
 							), //.IsOpen(&ctrlObjectsTabIsOpen),
 						),
+						giu.Combo("Cause Tx", causeTxs[causeTxSelected], causeTxs, &causeTxSelected),
+						giu.InputText(&valueStr).OnChange(checkValue),
 					),
 				},
 				giu.Layout{
@@ -121,7 +137,7 @@ func loop() {
 						giu.Checkbox("Auto Scrolling", &autoScrolling).OnChange(func() { fmt.Println(autoScrolling) }),
 					),
 					// giu.Label("Log"),
-					giu.InputTextMultiline(&logTxt).AutoScrollToBottom(autoScrolling).Size(1000, 1000).Flags(giu.InputTextFlagsReadOnly),
+					giu.InputTextMultiline(&logTxt).AutoScrollToBottom(autoScrolling).Size(1000, 500).Flags(giu.InputTextFlagsReadOnly),
 				}),
 		),
 	)
@@ -182,12 +198,60 @@ func addObject() {
 
 	var infoObj vv104.InfoObj
 	infoObj.Ioa = vv104.Ioa(ioa)
-	asdu.InfoObj = append(asdu.InfoObj, infoObj)
+	asdu.AddInfoObject(infoObj)
 	err := objects.AddObject(objName, *asdu)
 	if err != nil {
 		fmt.Println(err)
 	}
 	// ioa++
+
+}
+
+func sendMoniObject() {
+	objName := strings.Split(objects.MoniList[moniObjectSelected], " ")[0]
+
+	asdu, ok := objects.MoniObjects[objName]
+
+	if ok {
+		sendObject(asdu)
+	} else {
+		fmt.Println("can't send, object not found")
+	}
+}
+
+func sendCtrlObject() {
+	objName := strings.Split(objects.CtrlList[ctrlObjectSelected], " ")[0]
+
+	asdu, ok := objects.CtrlObjects[objName]
+
+	if ok {
+		sendObject(asdu)
+	} else {
+		fmt.Println("can't send, object not found")
+	}
+}
+
+func sendObject(asdu vv104.Asdu) {
+
+	if state.TcpConnected {
+
+		fmt.Println(vv104.IntVal(valueInt))
+
+		apdu := vv104.NewApdu()
+
+		asdu.InfoObj[0].Value = vv104.IntVal(valueInt)
+		asdu.InfoObj[0].TimeTag = time.Now()
+		// asdu.InfoObj[0].
+
+		asdu.Casdu = vv104.Casdu(casdu)
+		asdu.CauseTx = vv104.CauseTxFromName(causeTxs[causeTxSelected])
+		apdu.Asdu = asdu
+		apdu.Apci.FrameFormat = vv104.IFormatFrame
+
+		state.Chans.ToSend <- apdu
+	} else {
+		fmt.Println("can't send, no connection")
+	}
 
 }
 
@@ -249,4 +313,36 @@ func checkPort() {
 	} else {
 		errorTextPort = ""
 	}
+}
+
+func checkCasdu() {
+	var err error
+	casduInt, err := strconv.Atoi(casduStr)
+	if casduInt > 65535 || casduInt < 1 || err != nil {
+		errorTextCasdu = "<- Enter valid Casdu"
+	} else {
+		errorTextCasdu = ""
+		casdu = int16(casduInt)
+	}
+}
+
+func checkValue() {
+
+	var err error
+	valueInt, err = strconv.Atoi(valueStr)
+
+	if err != nil {
+		fmt.Println("cant convert value to int")
+	}
+
+	if valueInt > 32767 || valueInt < -32768 {
+		// todo
+		fmt.Println("value out of range")
+
+	}
+
+	fmt.Println("value:", valueInt)
+
+	// to do: check if value is float for float types.
+	// or is int for all other types
 }
