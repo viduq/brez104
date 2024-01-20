@@ -1,0 +1,39 @@
+[Config]
+mode = 'server'
+ipv4Addr = '127.0.0.1'
+port = 2404
+casdu = 1
+autoAck = true
+k = 12
+w = 8
+t1 = 15
+t2 = 10
+t3 = 20
+ioaStructured = false
+interactiveMode = true
+useLocalTime = true
+logToBuffer = true
+logToStdOut = true
+
+[ConfiguredObjects]
+monitoringList = [
+  ['sp1', '1', '5212'],
+  ['sp2', '1', '4242'],
+  ['sp3', '1', '3232'],
+  ['sp4', '1', '2252'],
+  ['sp5', '1', '1262'],
+  ['dp1', '3', '222'],
+  ['dp2', '3', '333'],
+  ['dp3', '3', '444'],
+  ['dp4', '3', '555'],
+]
+
+controlList = [
+  ['sc1', '45', '666'],
+  ['sc2', '45', '777'],
+  ['sc3', '45', '888'],
+  ['dc1', '46', '4888'],
+  ['dc2', '46', '3888'],
+  ['dc3', '46', '2888'],
+  ['dc4', '46', '1888'],
+]

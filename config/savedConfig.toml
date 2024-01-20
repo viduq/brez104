@@ -1,0 +1,26 @@
+[Config]
+mode = 'server'
+ipv4Addr = '192.168.0.1'
+port = 2404
+casdu = 0
+autoAck = true
+k = 12
+w = 8
+t1 = 15
+t2 = 10
+t3 = 20
+ioaStructured = false
+interactiveMode = true
+useLocalTime = false
+logToBuffer = true
+logToStdOut = true
+
+[ConfiguredObjects]
+monitoringList = [
+  ['a', '1', '1'],
+  ['av', '1', '2']
+]
+controlList = [
+  ['ava', '62', '2'],
+  ['avas', '62', '22']
+]

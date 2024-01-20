@@ -10,6 +10,7 @@ import (
 	"github.com/viduq/vv104"
 
 	"github.com/AllenDang/giu"
+	"github.com/sqweek/dialog"
 	"golang.org/x/image/colornames"
 )
 
@@ -23,9 +24,9 @@ var (
 	causeTxs             []string = vv104.CauseTxs
 	causeTxSelected      int32
 	typeIdStr            string
-	valueStr             string
-	valueInt             int
-	valueFloat           float32
+	valueStr             string  = "0"
+	valueInt             int     = 0
+	valueFloat           float32 = 0
 	moniObjectSelected   int32
 	ctrlObjectSelected   int32
 	moniObjectsTabIsOpen bool             = true
@@ -62,7 +63,8 @@ func loop() {
 	giu.SingleWindowWithMenuBar().Layout(
 		giu.MenuBar().Layout(
 			giu.Menu("File").Layout(
-				giu.MenuItem("Open Config").Shortcut("Ctrl+O"),
+				giu.MenuItem("Open Config").Shortcut("Ctrl+o").OnClick(openConfig),
+				giu.MenuItem("Save Config").Shortcut("Ctrl+s").OnClick(saveConfig),
 			),
 		),
 		giu.SplitLayout(giu.DirectionHorizontal, &sashPos1,
@@ -157,21 +159,7 @@ func main() {
 
 func connectIec104() {
 
-	state.Config.Mode = mode
-	state.Config.Ipv4Addr = ipAddrStr
-	state.Config.Port, _ = strconv.Atoi(portStr)
-	state.Config.InteractiveMode = true
-	state.Config.LogToBuffer = true
-	state.Config.LogToStdOut = true
-
-	state.Config.K, _ = strconv.Atoi(k)
-	state.Config.W, _ = strconv.Atoi(w)
-	state.Config.T1, _ = strconv.Atoi(t1)
-	state.Config.T2, _ = strconv.Atoi(t2)
-	state.Config.T3, _ = strconv.Atoi(t3)
-	state.Config.AutoAck = true
-	state.Config.IoaStructured = false
-	state.Config.UseLocalTime = false
+	writeConfigsToState()
 
 	vv104.LogCallBack = logCallback
 	// go refresh()
@@ -199,7 +187,7 @@ func addObject() {
 	var infoObj vv104.InfoObj
 	infoObj.Ioa = vv104.Ioa(ioa)
 	asdu.AddInfoObject(infoObj)
-	err := objects.AddObject(objName, *asdu)
+	err := objects.AddObjectByName(objName, *asdu)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -345,4 +333,66 @@ func checkValue() {
 
 	// to do: check if value is float for float types.
 	// or is int for all other types
+}
+
+func openConfig() {
+	filename, err := dialog.File().Filter("TOML file", "toml").Load()
+
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Println(filename)
+
+	loadedConfig, loadedObjects, err := vv104.LoadConfigAndObjectsFromFile(filename)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	state.Config = *loadedConfig
+	objects = *loadedObjects
+
+	if state.TcpConnected {
+		disconnectIec104()
+	}
+
+	// copy values from config to GUI, TODO, add new fields
+	ipAddrStr = state.Config.Ipv4Addr
+	portStr = fmt.Sprint(state.Config.Port)
+	mode = state.Config.Mode
+	k = fmt.Sprint(state.Config.K)
+	w = fmt.Sprint(state.Config.W)
+	t1 = fmt.Sprint(state.Config.T1)
+	t2 = fmt.Sprint(state.Config.T2)
+	t3 = fmt.Sprint(state.Config.T1)
+}
+
+func saveConfig() {
+	writeConfigsToState()
+	fileName, err := dialog.File().Filter("TOML file", "toml").Title("Save config as .toml file").Save()
+	if err != nil {
+		fmt.Println(err)
+	}
+	err = vv104.WriteConfigAndObjectsToFile(state.Config, objects, fileName)
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+func writeConfigsToState() {
+	state.Config.Mode = mode
+	state.Config.Ipv4Addr = ipAddrStr
+	state.Config.Port, _ = strconv.Atoi(portStr)
+	state.Config.InteractiveMode = true
+	state.Config.LogToBuffer = true
+	state.Config.LogToStdOut = true
+
+	state.Config.K, _ = strconv.Atoi(k)
+	state.Config.W, _ = strconv.Atoi(w)
+	state.Config.T1, _ = strconv.Atoi(t1)
+	state.Config.T2, _ = strconv.Atoi(t2)
+	state.Config.T3, _ = strconv.Atoi(t3)
+	state.Config.AutoAck = true
+	state.Config.IoaStructured = false
+	state.Config.UseLocalTime = false
 }
