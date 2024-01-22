@@ -122,12 +122,12 @@ func loop() {
 							giu.TabItem("Monitoring").Layout(
 								giu.ListBox("Monitoring", objects.MoniList).SelectedIndex(&moniObjectSelected).Size(sashPos2, 300),
 								giu.Button("Remove Moni Obj.").OnClick(removeMoniObject),
-								giu.Button("Send M. Obj.").OnClick(sendMoniObject),
+								giu.Button("Send M. Obj.").OnClick(sendMoniObject).Size(100, 30),
 							), //.IsOpen(&moniObjectsTabIsOpen), //.Flags(giu.TabItemFlagsSetSelected),
 							giu.TabItem("Control").Layout(
 								giu.ListBox("Control", objects.CtrlList).SelectedIndex(&ctrlObjectSelected).Size(sashPos2, 300),
 								giu.Button("Remove Ctrl Obj.").OnClick(removeCtrlObject),
-								giu.Button("Send C. Obj.").OnClick(sendCtrlObject),
+								giu.Button("Send C. Obj.").OnClick(sendCtrlObject).Size(100, 30),
 							), //.IsOpen(&ctrlObjectsTabIsOpen),
 						),
 						giu.Combo("Cause Tx", causeTxs[causeTxSelected], causeTxs, &causeTxSelected),
