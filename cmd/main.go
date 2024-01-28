@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"strconv"
@@ -10,30 +11,26 @@ import (
 	"github.com/viduq/vv104"
 
 	"github.com/AllenDang/giu"
+	"github.com/AllenDang/imgui-go"
 	"github.com/sqweek/dialog"
 	"golang.org/x/image/colornames"
 )
 
 var (
-	sashPos1             float32 = 100
-	sashPos2             float32 = 250
-	logTxt               string
-	colorConnection               = colornames.Cadetblue
-	typeIds              []string = vv104.TypeIDs
-	typeIdSelected       int32
-	causeTxs             []string = vv104.CauseTxs
-	causeTxSelected      int32
-	typeIdStr            string
-	valueStr             string  = "0"
-	valueInt             int     = 0
-	valueFloat           float32 = 0
-	moniObjectSelected   int32
-	ctrlObjectSelected   int32
-	moniObjectsTabIsOpen bool             = true
-	ctrlObjectsTabIsOpen bool             = false
-	casdu                int16            = 1
-	casduStr             string           = "1"
-	tabItemSelected      giu.TabItemFlags = giu.TabItemFlagsSetSelected
+	sashPos1           float32  = 100
+	sashPos2           float32  = 250
+	colorConnection             = colornames.Cadetblue
+	typeIds            []string = vv104.TypeIDs
+	typeIdSelected     int32
+	causeTxs           []string = vv104.CauseTxs
+	causeTxSelected    int32
+	typeIdStr          string
+	valueStr           string = "0"
+	valueInt           int    = 0
+	moniObjectSelected int32
+	ctrlObjectSelected int32
+	casdu              int16  = 1
+	casduStr           string = "1"
 
 	ioa            int32 = 1
 	objName        string
@@ -52,6 +49,11 @@ var (
 
 	state   vv104.State
 	objects vv104.Objects
+
+	ctx     context.Context
+	cancel  context.CancelFunc
+	logChan <-chan string
+	lines   []*giu.TableRowWidget
 )
 
 func init() {
@@ -72,8 +74,8 @@ func loop() {
 				giu.Label("Configuration"),
 				giu.Column(
 					giu.Row(
-						giu.RadioButton("Client", mode == "client").OnChange(func() { mode = "client"; fmt.Println("client") }),
-						giu.RadioButton("Server", mode == "server").OnChange(func() { mode = "server"; fmt.Println("server") }),
+						giu.RadioButton("Client", mode == "client").OnChange(func() { mode = "client" }),
+						giu.RadioButton("Server", mode == "server").OnChange(func() { mode = "server" }),
 						giu.Label("IP:"),
 						giu.InputText(&ipAddrStr).OnChange(checkIpAddr).Label("###ipInput").Size(150),
 						giu.Label(errorTextIp),
@@ -136,10 +138,12 @@ func loop() {
 				},
 				giu.Layout{
 					giu.Row(
-						giu.Checkbox("Auto Scrolling", &autoScrolling).OnChange(func() { fmt.Println(autoScrolling) }),
+						giu.Checkbox("Auto Scrolling", &autoScrolling),
 					),
 					// giu.Label("Log"),
-					giu.InputTextMultiline(&logTxt).AutoScrollToBottom(autoScrolling).Size(1000, 500).Flags(giu.InputTextFlagsReadOnly),
+					// giu.InputTextMultiline(&logTxt).AutoScrollToBottom(autoScrolling).Size(1000, 500).Flags(giu.InputTextFlagsReadOnly),
+					// giu.ListBox("LogBox", logTxt).SelectedIndex(&selectedIndex),
+					giu.Table().Columns(giu.TableColumn("")).Rows(lines...),
 				}),
 		),
 	)
@@ -159,26 +163,55 @@ func main() {
 
 func connectIec104() {
 
+	ctx, cancel = context.WithCancel(context.Background())
+
 	writeConfigsToState()
 
-	vv104.LogCallBack = logCallback
-	// go refresh()
+	if state.Config.LogToBuffer {
+		logChan = vv104.NewLogChan()
+		go readLogChan()
+	}
+
 	go state.Start()
 
 }
 
 func disconnectIec104() {
 	state.Chans.CommandsFromStdin <- "disconnect"
+	cancel()
 }
 
-func logCallback() {
-	logTxt += vv104.ReadLogEntry()
-	giu.Update()
+func readLogChan() {
+	fmt.Println("readLogChan start")
+
+	for {
+		select {
+		case s, ok := <-logChan:
+			if !ok {
+				// channel is closed
+				fmt.Println("readLogChan returns")
+				return
+			}
+
+			lines = append(lines, giu.TableRow(giu.Custom(func() {
+				giu.Labelf(s).Build()
+
+				if autoScrolling {
+					imgui.SetScrollHereY(1.0)
+				}
+
+			})))
+			giu.Update()
+
+		case <-ctx.Done():
+			fmt.Println("Done, readLogChan exits")
+			return
+		}
+
+	}
 }
 
 func addObject() {
-	fmt.Println(moniObjectsTabIsOpen)
-	fmt.Println(ctrlObjectsTabIsOpen)
 
 	asdu := vv104.NewAsdu()
 	typeIdStr = typeIds[typeIdSelected]
@@ -222,8 +255,6 @@ func sendCtrlObject() {
 func sendObject(asdu vv104.Asdu) {
 
 	if state.TcpConnected {
-
-		fmt.Println(vv104.IntVal(valueInt))
 
 		apdu := vv104.NewApdu()
 
@@ -383,9 +414,6 @@ func writeConfigsToState() {
 	state.Config.Mode = mode
 	state.Config.Ipv4Addr = ipAddrStr
 	state.Config.Port, _ = strconv.Atoi(portStr)
-	state.Config.InteractiveMode = true
-	state.Config.LogToBuffer = true
-	state.Config.LogToStdOut = true
 
 	state.Config.K, _ = strconv.Atoi(k)
 	state.Config.W, _ = strconv.Atoi(w)
@@ -395,4 +423,9 @@ func writeConfigsToState() {
 	state.Config.AutoAck = true
 	state.Config.IoaStructured = false
 	state.Config.UseLocalTime = false
+
+	state.Config.InteractiveMode = true
+	state.Config.LogToBuffer = true
+	state.Config.LogToStdOut = true
+
 }
