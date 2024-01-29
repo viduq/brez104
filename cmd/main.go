@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -17,16 +18,17 @@ import (
 )
 
 var (
-	sashPos1           float32  = 100
-	sashPos2           float32  = 250
-	colorConnection             = colornames.Cadetblue
-	typeIds            []string = vv104.TypeIDs
-	typeIdSelected     int32
-	causeTxs           []string = vv104.CauseTxs
-	causeTxSelected    int32
-	typeIdStr          string
-	valueStr           string = "0"
-	valueInt           int    = 0
+	sashPos1        float32  = 100
+	sashPos2        float32  = 250
+	colorConnection          = colornames.Cadetblue
+	typeIds         []string = vv104.TypeIDs
+	typeIdSelected  int32
+	causeTxs        []string = vv104.CauseTxs
+	causeTxSelected int32
+	typeIdStr       string
+	valueStr        string = "0"
+	value           vv104.InfoValue
+
 	moniObjectSelected int32
 	ctrlObjectSelected int32
 	casdu              int16  = 1
@@ -133,7 +135,7 @@ func loop() {
 							), //.IsOpen(&ctrlObjectsTabIsOpen),
 						),
 						giu.Combo("Cause Tx", causeTxs[causeTxSelected], causeTxs, &causeTxSelected),
-						giu.InputText(&valueStr).OnChange(checkValue),
+						giu.InputText(&valueStr),
 					),
 				},
 				giu.Layout{
@@ -259,10 +261,25 @@ func sendObject(asdu vv104.Asdu) {
 
 		apdu := vv104.NewApdu()
 
-		asdu.InfoObj[0].Value = vv104.IntVal(valueInt)
+		err := checkValue(asdu.TypeId == vv104.M_ME_NC_1 || asdu.TypeId == vv104.M_ME_TF_1)
+
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		if asdu.TypeId == vv104.M_ME_NC_1 || asdu.TypeId == vv104.M_ME_TF_1 {
+			if _, ok := value.(vv104.FloatVal); !ok {
+				fmt.Println("Value must be float")
+				return
+			}
+		} else if _, ok := value.(vv104.IntVal); !ok {
+			fmt.Println("Value must be Int")
+			return
+		}
+		asdu.InfoObj[0].Value = value
 		asdu.InfoObj[0].TimeTag = time.Now()
 		// asdu.InfoObj[0].
-
 		asdu.Casdu = vv104.Casdu(casdu)
 		asdu.CauseTx = vv104.CauseTxFromName(causeTxs[causeTxSelected])
 		apdu.Asdu = asdu
@@ -283,23 +300,6 @@ func removeCtrlObject() {
 }
 
 func removeObject(objectSelected int32, lenList int32, list vv104.ObjectList) {
-	// fmt.Println(moniObjectSelected)
-	// fmt.Println(ctrlObjectSelected)
-
-	// var objectSelected int32
-	// var lenList int32
-	// var list vv104.ObjectList
-
-	// // This does not work yet, moniObjectsTabIsOpen is not
-	// if moniObjectsTabIsOpen {
-	// 	objectSelected = moniObjectSelected
-	// 	lenList = int32(len(objects.MoniList))
-	// 	list = objects.MoniList
-	// } else {
-	// 	objectSelected = ctrlObjectSelected
-	// 	lenList = int32(len(objects.CtrlList))
-	// 	list = objects.CtrlList
-	// }
 
 	if objectSelected < lenList && objectSelected >= 0 && lenList >= 1 {
 		// ObjectList contains objName | TypeID | IOA, we only need objName for reference, so we have to cut after first space
@@ -346,25 +346,40 @@ func checkCasdu() {
 	}
 }
 
-func checkValue() {
+func checkValue(checkForFloat bool) error {
 
 	var err error
-	valueInt, err = strconv.Atoi(valueStr)
+	var valueFloat64 float64
 
-	if err != nil {
-		fmt.Println("cant convert value to int")
+	if checkForFloat {
+
+		valueFloat64, err = strconv.ParseFloat(valueStr, 32)
+		if err != nil {
+			return errors.New("cant convert value to float")
+		}
+		value = vv104.FloatVal(float32(valueFloat64))
+
+	} else {
+		// check for int
+		var valueInt int
+		valueInt, err = strconv.Atoi(valueStr)
+
+		if err != nil {
+			return errors.New("cant convert value to int")
+		}
+
+		if valueInt > 32767 || valueInt < -32768 {
+			// todo
+			return errors.New("value out of range")
+		}
+
+		// is valid int value
+		value = vv104.IntVal(valueInt)
+
 	}
 
-	if valueInt > 32767 || valueInt < -32768 {
-		// todo
-		fmt.Println("value out of range")
-
-	}
-
-	fmt.Println("value:", valueInt)
-
-	// to do: check if value is float for float types.
-	// or is int for all other types
+	fmt.Println("value:", value)
+	return nil
 }
 
 func openConfig() {
