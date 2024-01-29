@@ -127,12 +127,29 @@ func loop() {
 								giu.ListBox("Monitoring", objects.MoniList).SelectedIndex(&moniObjectSelected).Size(sashPos2, 300),
 								giu.Button("Remove Moni Obj.").OnClick(removeMoniObject),
 								giu.Button("Send M. Obj.").OnClick(sendMoniObject).Size(100, 30),
-							), //.IsOpen(&moniObjectsTabIsOpen), //.Flags(giu.TabItemFlagsSetSelected),
+							),
 							giu.TabItem("Control").Layout(
 								giu.ListBox("Control", objects.CtrlList).SelectedIndex(&ctrlObjectSelected).Size(sashPos2, 300),
 								giu.Button("Remove Ctrl Obj.").OnClick(removeCtrlObject),
 								giu.Button("Send C. Obj.").OnClick(sendCtrlObject).Size(100, 30),
-							), //.IsOpen(&ctrlObjectsTabIsOpen),
+							),
+							giu.TabItem("Special").Layout(
+								giu.Row(
+									giu.Button("Send StartDT act").OnClick(func() { state.Chans.CommandsFromStdin <- "startdt_act" }),
+									giu.Button("Send StartDT con").OnClick(func() { state.Chans.CommandsFromStdin <- "startdt_con" }),
+								),
+								giu.Row(
+									giu.Button("Send StopDT act").OnClick(func() { state.Chans.CommandsFromStdin <- "stopdt_act" }),
+									giu.Button("Send StopDT con").OnClick(func() { state.Chans.CommandsFromStdin <- "stopdt_con" }),
+								),
+								giu.Row(
+									giu.Button("Send TestFr act").OnClick(func() { state.Chans.CommandsFromStdin <- "testfr_act" }),
+									giu.Button("Send TestFr con").OnClick(func() { state.Chans.CommandsFromStdin <- "testfr_con" }),
+								),
+								giu.Row(
+									giu.Button("Send GI cmd").OnClick(sendGI),
+								),
+							),
 						),
 						giu.Combo("Cause Tx", causeTxs[causeTxSelected], causeTxs, &causeTxSelected),
 						giu.InputText(&valueStr),
@@ -444,4 +461,18 @@ func writeConfigsToState() {
 	state.Config.LogToBuffer = true
 	state.Config.LogToStdOut = true
 
+}
+
+func sendGI() {
+	gi := vv104.NewApdu()
+	infoObj := vv104.NewInfoObj()
+	infoObj.Ioa = 0
+	infoObj.CommandInfo.Qoi = 20
+	gi.Apci.FrameFormat = vv104.IFormatFrame
+	gi.Asdu.TypeId = vv104.C_IC_NA_1
+	gi.Asdu.CauseTx = vv104.Act
+	gi.Asdu.Casdu = vv104.Casdu(casdu)
+	gi.Asdu.AddInfoObject(infoObj)
+
+	state.Chans.ToSend <- gi
 }
