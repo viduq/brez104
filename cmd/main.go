@@ -199,6 +199,7 @@ func readLogChan() {
 				if autoScrolling {
 					imgui.SetScrollHereY(1.0)
 				}
+				giu.Update()
 
 			})))
 			giu.Update()
