@@ -49,8 +49,8 @@ var (
 	t2             string = "10"
 	t3             string = "20"
 
-	state   vv104.State
-	objects vv104.Objects
+	state vv104.State
+	// objects vv104.Objects
 
 	ctx     context.Context
 	cancel  context.CancelFunc
@@ -59,10 +59,6 @@ var (
 
 	wg sync.WaitGroup
 )
-
-func init() {
-	objects = *vv104.NewObjects()
-}
 
 func loop() {
 	wg.Add(1)
@@ -128,12 +124,12 @@ func loop() {
 					giu.Column(
 						giu.TabBar().TabItems(
 							giu.TabItem("Monitoring").Layout(
-								giu.ListBox("Monitoring", objects.MoniList).SelectedIndex(&moniObjectSelected).Size(sashPos2, 300),
+								giu.ListBox("Monitoring", state.Objects.MoniList).SelectedIndex(&moniObjectSelected).Size(sashPos2, 300),
 								giu.Button("Remove Moni Obj.").OnClick(removeMoniObject),
 								giu.Button("Send M. Obj.").OnClick(sendMoniObject).Size(100, 30),
 							),
 							giu.TabItem("Control").Layout(
-								giu.ListBox("Control", objects.CtrlList).SelectedIndex(&ctrlObjectSelected).Size(sashPos2, 300),
+								giu.ListBox("Control", state.Objects.CtrlList).SelectedIndex(&ctrlObjectSelected).Size(sashPos2, 300),
 								giu.Button("Remove Ctrl Obj.").OnClick(removeCtrlObject),
 								giu.Button("Send C. Obj.").OnClick(sendCtrlObject).Size(100, 30),
 							),
@@ -183,6 +179,7 @@ func loop() {
 
 func main() {
 	wnd := giu.NewMasterWindow("Brez", 1000, 800, 0)
+	state = vv104.NewState()
 
 	wnd.Run(loop)
 }
@@ -238,7 +235,7 @@ func addObject() {
 	var infoObj vv104.InfoObj
 	infoObj.Ioa = vv104.Ioa(ioa)
 	asdu.AddInfoObject(infoObj)
-	err := objects.AddObjectByName(objName, *asdu)
+	err := state.Objects.AddObjectByName(objName, *asdu)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -247,9 +244,9 @@ func addObject() {
 }
 
 func sendMoniObject() {
-	objName := strings.Split(objects.MoniList[moniObjectSelected], " ")[0]
+	objName := strings.Split(state.Objects.MoniList[moniObjectSelected], " ")[0]
 
-	asdu, ok := objects.MoniObjects[objName]
+	asdu, ok := state.Objects.MoniObjects[objName]
 
 	if ok {
 		sendObject(asdu)
@@ -259,9 +256,9 @@ func sendMoniObject() {
 }
 
 func sendCtrlObject() {
-	objName := strings.Split(objects.CtrlList[ctrlObjectSelected], " ")[0]
+	objName := strings.Split(state.Objects.CtrlList[ctrlObjectSelected], " ")[0]
 
-	asdu, ok := objects.CtrlObjects[objName]
+	asdu, ok := state.Objects.CtrlObjects[objName]
 
 	if ok {
 		sendObject(asdu)
@@ -308,10 +305,10 @@ func sendObject(asdu vv104.Asdu) {
 }
 
 func removeMoniObject() {
-	removeObject(moniObjectSelected, int32(len(objects.MoniList)), objects.MoniList)
+	removeObject(moniObjectSelected, int32(len(state.Objects.MoniList)), state.Objects.MoniList)
 }
 func removeCtrlObject() {
-	removeObject(ctrlObjectSelected, int32(len(objects.CtrlList)), objects.CtrlList)
+	removeObject(ctrlObjectSelected, int32(len(state.Objects.CtrlList)), state.Objects.CtrlList)
 }
 
 func removeObject(objectSelected int32, lenList int32, list vv104.ObjectList) {
@@ -320,7 +317,7 @@ func removeObject(objectSelected int32, lenList int32, list vv104.ObjectList) {
 		// ObjectList contains objName | TypeID | IOA, we only need objName for reference, so we have to cut after first space
 		// this is a bit of a hack. Todo.
 		objName := strings.Split(list[objectSelected], " ")[0]
-		err := objects.RemoveObject(objName)
+		err := state.Objects.RemoveObject(objName)
 		if err != nil {
 			fmt.Println(err)
 		}
@@ -412,7 +409,7 @@ func openConfig() {
 	}
 
 	state.Config = *loadedConfig
-	objects = *loadedObjects
+	state.Objects = loadedObjects
 
 	if state.TcpConnected {
 		disconnectIec104()
@@ -435,7 +432,7 @@ func saveConfig() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	err = vv104.WriteConfigAndObjectsToFile(state.Config, objects, fileName)
+	err = vv104.WriteConfigAndObjectsToFile(&state, fileName)
 	if err != nil {
 		fmt.Println(err)
 	}
