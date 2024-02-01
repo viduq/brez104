@@ -6,7 +6,7 @@ require (
 	github.com/AllenDang/giu v0.7.0
 	github.com/AllenDang/imgui-go v1.12.1-0.20221124025851-59b862ca5a0c
 	github.com/sqweek/dialog v0.0.0-20220809060634-e981b270ebbf
-	github.com/viduq/vv104 v0.0.0-20240129211958-7f8c06eaac8c
+	github.com/viduq/vv104 v0.0.0-20240131212736-e9c2e56da69b
 	golang.org/x/image v0.15.0
 )
 
