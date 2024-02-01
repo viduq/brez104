@@ -7,12 +7,12 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/viduq/vv104"
 
 	"github.com/AllenDang/giu"
-	"github.com/AllenDang/imgui-go"
 	"github.com/sqweek/dialog"
 	"golang.org/x/image/colornames"
 )
@@ -55,7 +55,9 @@ var (
 	ctx     context.Context
 	cancel  context.CancelFunc
 	logChan <-chan string
-	lines   []*giu.TableRowWidget
+	logTxt  string
+
+	wg sync.WaitGroup
 )
 
 func init() {
@@ -63,6 +65,8 @@ func init() {
 }
 
 func loop() {
+	wg.Add(1)
+	defer wg.Done()
 
 	giu.SingleWindowWithMenuBar().Layout(
 		giu.MenuBar().Layout(
@@ -158,11 +162,13 @@ func loop() {
 				giu.Layout{
 					giu.Row(
 						giu.Checkbox("Auto Scrolling", &autoScrolling),
+						giu.Button("Clear").OnClick(func() { logTxt = "" }),
+						giu.Button("Copy").OnClick(func() { logTxt = "" }),
 					),
 					// giu.Label("Log"),
-					// giu.InputTextMultiline(&logTxt).AutoScrollToBottom(autoScrolling).Size(1000, 500).Flags(giu.InputTextFlagsReadOnly),
+					giu.InputTextMultiline(&logTxt).AutoScrollToBottom(autoScrolling).Flags(giu.InputTextFlagsReadOnly).Size(600, 600),
 					// giu.ListBox("LogBox", logTxt).SelectedIndex(&selectedIndex),
-					giu.Table().Columns(giu.TableColumn("")).Rows(lines...),
+					// giu.Table().Columns(giu.TableColumn("")).Rows(lines...),
 				}),
 		),
 	)
@@ -172,6 +178,7 @@ func loop() {
 	} else {
 		colorConnection = colornames.Cadetblue
 	}
+
 }
 
 func main() {
@@ -203,24 +210,15 @@ func disconnectIec104() {
 func readLogChan() {
 	fmt.Println("readLogChan start")
 
+	// it is maybe not necessary anymore for this to be so complicated
+	// we could just log to a string directly.
+	// however there was a race condition that is hopefully now resolved with the waitgroup, and this function was one attempt to fix it
+
 	for {
 		select {
-		case s, ok := <-logChan:
-			if !ok {
-				// channel is closed
-				fmt.Println("readLogChan returns")
-				return
-			}
-
-			lines = append(lines, giu.TableRow(giu.Custom(func() {
-				giu.Labelf(s).Build()
-
-				if autoScrolling {
-					imgui.SetScrollHereY(1.0)
-				}
-				giu.Update()
-
-			})))
+		case s := <-logChan:
+			wg.Wait()
+			logTxt += s
 			giu.Update()
 
 		case <-ctx.Done():
